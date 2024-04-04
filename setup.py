@@ -1,11 +1,11 @@
 from setuptools import find_packages,setup
 from typing import List
 
+HYPEN_E_DOT = "-e ."
 def get_requirements(file_path:str) -> List[str]:
     """
     this function will return the list of requirements
     """
-    HYPEN_E_DOT = "-e ."
     requirements = []
     with open(file_path) as file_obj:
         requirements=file_obj.readlines()
@@ -21,6 +21,6 @@ version='0.0.1',
 author='datirado',
 author_email='datirado@dataexpn.com',
 packages=find_packages(),
-install_requirements=get_requirements('requirements.txt')
+install_requires=get_requirements('requirements.txt')
 
 )
