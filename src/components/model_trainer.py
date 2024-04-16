@@ -43,41 +43,75 @@ class ModelTrainer:
                 test_array[:,-1]
             )
             models = {
-                "Logistic Regression": LogisticRegression(max_iter=3000),
-                "Decission Tree": DecisionTreeClassifier(),
+                "Logistic Regression": LogisticRegression(),
+                "Decision Tree": DecisionTreeClassifier(),
                 "KNeighbors": KNeighborsClassifier(),
                 "Random Forest": RandomForestClassifier(),
                 "SVC": SVC(),
                 "LinearDiscriminantAnalysis": LinearDiscriminantAnalysis(),
                 "GaussianNB": GaussianNB(),
             }
-            
-            model_report:dict=evaluate_models(X_train=X_train,y_train=y_train,X_test=X_test,y_test=y_test,
-                                             models=models)
-            
-            ## To get best model score from dict
-            best_model_score = max(sorted(model_report.values()))
 
-            ## To get best model name from dict
+            hyp_params = {
+            "Logistic Regression": {
+                    'C': [0.1, 1, 10],
+                    'solver': ['liblinear', 'saga']
+            },
+            "Decision Tree": {
+                    'max_depth': [None, 10, 20, 30],
+                    'min_samples_leaf': [1, 2, 4]
+            },
+            "KNeighbors": {
+                    'n_neighbors': [3, 5, 11],
+                    'weights': ['uniform', 'distance']
+            },
+            "Random Forest": {
+                    'n_estimators': [10, 50, 100],
+                    'max_depth': [10, 20, None],
+            },
+            "SVC": {
+                    'C': [0.1, 1, 10],
+                    'kernel': ['rbf', 'linear']
+            },
+            "LinearDiscriminantAnalysis": {
+                    'solver': ['svd', 'lsqr', 'eigen']
+                },
+            "GaussianNB": {
+                    'var_smoothing': [1e-09, 1e-08, 1e-10]
+            }
+            }
+            
+            model_report:dict=evaluate_models(X_train = X_train, y_train = y_train, X_test = X_test, y_test = y_test,
+                                             models = models, hyp_params = hyp_params)
+            
+            # Extract the best model based on Test Score
+            best_model, best_model_details = max(model_report.items(), key=lambda x: x[1]["Test Score"])
 
-            best_model_name = list(model_report.keys())[
-                list(model_report.values()).index(best_model_score)
-            ]
-            best_model = models[best_model_name]
+            best_model_score = best_model_details["Test Score"]
+            best_hyp = best_model_details["Best Parameters"]
 
             if best_model_score<0.75:
                 raise CustomException("No best model found")
             logging.info(f"Best found model on both training and testing dataset")
+            
+            best_model_instance = models[best_model].set_params(**best_hyp)
+
+            # Now, fit the best model instance to your training data
+            best_model_instance.fit(X_train, y_train)
 
             save_object(
                 file_path=self.model_trainer_config.trained_model_file_path,
-                obj=best_model
+                obj=best_model_instance
             )
 
-            predicted=best_model.predict(X_test)
+            # After fitting, you can use this model to predict on X_test
+            predictions = best_model_instance.predict(X_test)
+            class_values = ['Existing Customer' if pred == 1 else 'Attrited Customer' for pred in predictions]
 
-            acc_score = accuracy_score(y_test, predicted)
-            return acc_score
+
+            acc_score = accuracy_score(y_test, predictions)
+
+            return class_values, acc_score
             
         except Exception as e:
             raise CustomException(e,sys)

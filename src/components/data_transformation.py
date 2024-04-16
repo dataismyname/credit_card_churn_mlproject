@@ -16,7 +16,10 @@ from src.utils import save_object
 
 @dataclass
 class DataTransformationConfig:
-    preprocessor_obj_file_path = os.path.join('artifacts', 'preprocessor.pkl')
+    preprocessor_obj_file_path: str = os.path.join('artifacts', 'preprocessor.pkl')
+    label_encoder_file_path: str = os.path.join('artifacts', 'label_encoder.pkl')
+    feature_names_file_path: str = os.path.join('artifacts', 'feature_names.pkl')
+    correlated_features_file_path: str = os.path.join('artifacts', 'target_corr_features.pkl')
 
 class DataTransformation:
     def __init__(self):
@@ -80,72 +83,61 @@ class DataTransformation:
             # Creating new features
             for df in [train_df, test_df]:
                 df['Products_year'] = df['Total_Relationship_Count'] / df['Months_on_book'] * 12
-                df['Transaction_Amt_Change_Rate'] = (df['Total_Trans_Amt'] - df['Total_Trans_Amt'].shift(1)) / df['Total_Trans_Amt'].shift(1)
-                df['Transaction_Ct_Change_Rate'] = (df['Total_Trans_Ct'] - df['Total_Trans_Ct'].shift(1)) / df['Total_Trans_Ct'].shift(1)
+                #df['Transaction_Amt_Change_Rate'] = (df['Total_Trans_Amt'] - df['Total_Trans_Amt'].shift(1)) / df['Total_Trans_Amt'].shift(1)
+                #df['Transaction_Ct_Change_Rate'] = (df['Total_Trans_Ct'] - df['Total_Trans_Ct'].shift(1)) / df['Total_Trans_Ct'].shift(1)
 
             #Defining features and target columns
             target_column = 'Attrition_Flag'
             train_features = train_df.drop(columns=[target_column], axis = 1)
             test_features = test_df.drop(columns=[target_column], axis = 1)
             
-            #Saving encoded features column names
-            enc_feat_col = pd.get_dummies(train_features).columns
-
             # Preprocessing object initialized
             logging.info("Obtaining preprocessing object.")
             preprocessing_obj=self.get_data_transformation_obj(train_features)
-
-            #Encoding target column
-            le = LabelEncoder()
-            train_target_encoded = le.fit_transform(train_df[target_column])
-            test_target_encoded = le.transform(test_df[target_column])
-
             
             logging.info(f"Applying preprocessing object on training dataframe and testing dataframe.")
             train_features_transformed = preprocessing_obj.fit_transform(train_features)
             test_features_transformed = preprocessing_obj.transform(test_features)
 
-
-            # Transformed and encoded DataFrames
-            train_df_trans = pd.DataFrame(train_features_transformed, columns = enc_feat_col)
-            train_df_trans[target_column] = train_target_encoded
-            train_df_trans.dropna(inplace=True)
-
-            test_df_trans = pd.DataFrame(test_features_transformed, columns = enc_feat_col)
-            test_df_trans[target_column] = test_target_encoded
-            test_df_trans.dropna(inplace=True)
-            
-            #Target correlated features
-            corrmat = train_df_trans.corr()
-            pos_corr_target_bool = corrmat.loc[target_column,:].between(0.1,0.65)
-            neg_corr_target_bool = corrmat.loc[target_column,:].between(-0.65, -0.1)
-            target_corr_features = corrmat[target_column][pos_corr_target_bool | neg_corr_target_bool]
-
-            #Obtaining input arrays
-            train_input_arr = np.array(train_df_trans[target_corr_features.index])
-            test_input_arr = np.array(test_df_trans[target_corr_features.index])
-
-            train_target_arr = np.array(train_df_trans[target_column])
-            test_target_arr = np.array(test_df_trans[target_column])
-
-            train_arr = np.c_[train_input_arr, train_target_arr]
-            test_arr = np.c_[test_input_arr, test_target_arr]
-
-
             logging.info(f"Saving preprocessing object.")
 
             save_object(
-
                 file_path=self.data_transformation_config.preprocessor_obj_file_path,
                 obj=preprocessing_obj
-
             )
+            
+            #Saving encoded features column names
+            enc_feat_col = pd.get_dummies(train_features).columns
+            save_object(file_path=self.data_transformation_config.feature_names_file_path, obj=enc_feat_col)
+            # Apply preprocessing and encode target
+            le = LabelEncoder()
+            train_target_encoded = le.fit_transform(train_df[target_column])
+            test_target_encoded = le.transform(test_df[target_column])
 
-            return (
-                train_arr,
-                test_arr,
-                self.data_transformation_config.preprocessor_obj_file_path,
-            )
+            # Serialize label encoder
+            save_object(self.data_transformation_config.label_encoder_file_path, obj = le)
+
+            # Transformed and encoded DataFrames
+            train_df_trans = pd.DataFrame(train_features_transformed, columns=enc_feat_col)
+            train_df_trans[target_column] = train_target_encoded
+            train_df_trans.dropna(inplace=True)
+
+            test_df_trans = pd.DataFrame(test_features_transformed, columns=enc_feat_col)
+            test_df_trans[target_column] = test_target_encoded
+            test_df_trans.dropna(inplace=True)
+
+            # Calculate correlation matrix and select correlated features
+            corrmat = train_df_trans.corr()
+            target_corr_bool = corrmat.loc[target_column,:].between(0.1, 0.65) | corrmat.loc[target_column,:].between(-0.65, -0.1)
+            correlated_features = corrmat.columns[target_corr_bool].tolist()
+
+            # Serialize the correlated features
+            save_object(self.data_transformation_config.correlated_features_file_path, obj=correlated_features)
+
+            # Filter data based on selected features
+            train_arr = train_df_trans[correlated_features + [target_column]].values
+            test_arr = test_df_trans[correlated_features + [target_column]].values
+
+            return train_arr, test_arr
         except Exception as e:
-            raise CustomException(e,sys)
-        
+            raise CustomException(e, sys)
