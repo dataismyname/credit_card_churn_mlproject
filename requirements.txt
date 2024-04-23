@@ -4,8 +4,8 @@ seaborn
 matplotlib
 scipy
 scikit-learn
-tensorflow
-keras
+#tensorflow
+#keras
 dill
 Flask
 # -e .
