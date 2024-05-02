@@ -4,7 +4,6 @@ import pandas as pd
 
 from src.pipeline.predictive_pipeline import PredictPipeline, CustomData
 
-
 application = Flask(__name__)
 
 app = application
