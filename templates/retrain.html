@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% block title %}Retrain Model{% endblock %}
+
+{% block content %}
+<div class="card mx-auto" style="max-width: 500px;">
+    <div class="card-body text-center">
+        <h2 class="card-title">Upload CSV to Retrain Model</h2>
+        <form id="retrainForm">
+            <div class="mb-3">
+                <input class="form-control" type="file" id="fileInput" name="file" accept=".csv" required>
+            </div>
+            <button type="submit" class="btn btn-success">Start Retraining</button>
+        </form>
+        <div class="response mt-3" id="response"></div>
+    </div>
+</div>
+
+<script>
+    document.getElementById('retrainForm').addEventListener('submit', async function(event) {
+        event.preventDefault();
+
+        const fileInput = document.getElementById('fileInput');
+        const responseDiv = document.getElementById('response');
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+
+        responseDiv.innerHTML = '<div class="text-muted">Uploading and processing...</div>';
+
+        try {
+            const response = await fetch('/retrain', {
+                method: 'POST',
+                body: formData
+            });
+
+            const contentType = response.headers.get('content-type');
+
+            if (contentType && contentType.includes('application/json')) {
+                const result = await response.json();
+                if (response.ok) {
+                    responseDiv.innerHTML = `<div class="text-success fw-bold">${result.message}</div>`;
+                } else {
+                    responseDiv.innerHTML = `<div class="text-danger fw-bold">${result.error}</div>`;
+                }
+            } else {
+                const text = await response.text();
+                responseDiv.innerHTML = `<div class="text-danger">Unexpected response: ${text}</div>`;
+            }
+        } catch (error) {
+            responseDiv.innerHTML = `<div class="text-danger">Error: ${error.message}</div>`;
+        }
+    });
+</script>
+{% endblock %}

@@ -19,125 +19,131 @@ class DataTransformationConfig:
     preprocessor_obj_file_path: str = os.path.join('artifacts', 'preprocessor.pkl')
     label_encoder_file_path: str = os.path.join('artifacts', 'label_encoder.pkl')
     feature_names_file_path: str = os.path.join('artifacts', 'feature_names.pkl')
-    correlated_features_file_path: str = os.path.join('artifacts', 'target_corr_features.pkl')
 
 class DataTransformation:
     def __init__(self):
         self.data_transformation_config = DataTransformationConfig()
 
+    def identify_columns(self, df, exclude_cols=None):
+        if exclude_cols is None:
+            exclude_cols = []
+        num_cols = [col for col in df.select_dtypes(include='number').columns if col not in exclude_cols]
+        cat_cols = [col for col in df.select_dtypes(exclude='number').columns if col not in exclude_cols]
+        return num_cols, cat_cols
+
+    def handle_outliers(self, df, skew_threshold=1, limits=(0.05, 0.25)):
+        for col in df.select_dtypes(include='number').columns:
+            skewness = skew(df[col])
+            adjusted_limits = limits if skewness > skew_threshold else (limits[1], limits[0]) if skewness < -skew_threshold else (0.15, 0.15)
+            df[col] = winsorize(df[col], limits=adjusted_limits)
+        return df
+
+    def create_new_features(self, df, feature_formulas):
+        for new_feature, formula in feature_formulas.items():
+            df[new_feature] = eval(formula)
+        return df
+
+    def save_multiple_objects(self, file_paths, objects):
+        for file_path, obj in zip(file_paths, objects):
+            save_object(file_path, obj)
+
     def get_data_transformation_obj(self, features):
         """
-        This function is responsible of data transformation
+        This function sets up pipelines for scaling numeric columns and encoding categorical columns.
         """
         try:
+            # Identifying numerical and categorical columns
+            num_columns, cat_columns = self.identify_columns(features, exclude_cols=['Attrition_Flag'])
 
-            #Defining numerical and categorical columns
-            # Select numerical columns
-            num_columns = features.select_dtypes(include='number').columns.tolist()
-            
-            # Select categorical columns, excluding the target column
-            cat_columns = features.select_dtypes(exclude='number').columns.tolist()
-            cat_columns = [col for col in cat_columns if col != 'Attrition_Flag'] 
-
-            #Pipelines and Column Transformer
+            # Pipelines and Column Transformer
             num_pipeline = Pipeline(steps=[("scaler", StandardScaler())])
-            cat_pipeline = Pipeline(steps=[("ohe", OneHotEncoder()),])
+            cat_pipeline = Pipeline(steps=[("ohe", OneHotEncoder())])
 
             logging.info(f"Numerical columns: {num_columns}")
             logging.info(f"Categorical columns: {cat_columns}")
-            
-            preprocessor=ColumnTransformer(
+
+            preprocessor = ColumnTransformer(
                 [
                     ("num_pipeline", num_pipeline, num_columns),
                     ("cat_pipeline", cat_pipeline, cat_columns),
                 ])
 
             return preprocessor
-        
-        except Exception as e:
-            raise CustomException(e,sys)
 
-    def initiate_data_transformation(self,train_path,test_path):
-        """
-        This function is responsable of data initial transformation
-        """
+        except Exception as e:
+            raise CustomException(e, sys)
+
+    def initiate_data_transformation(self, train_path, test_path):
+        selected_features = [
+            'Months_on_book',
+            'Total_Relationship_Count',
+            'Months_Inactive_12_mon',
+            'Contacts_Count_12_mon',
+            'Total_Revolving_Bal',
+            'Total_Amt_Chng_Q4_Q1',
+            'Total_Trans_Amt',
+            'Total_Trans_Ct',
+            'Total_Ct_Chng_Q4_Q1',
+            'Avg_Utilization_Ratio',
+            'Attrition_Flag'
+        ]
 
         try:
-            train_df=pd.read_csv(train_path)
-            test_df=pd.read_csv(test_path)
+            # Reading the data
+            train_df = pd.read_csv(train_path)
+            test_df = pd.read_csv(test_path)
 
             logging.info("Read train and test data completed.")
-
-            #Dropping unnecessary columns 
-            logging.info("Preparing DataFrame")
-            train_df = train_df.iloc[:,1:-2]
-            test_df = test_df.iloc[:,1:-2]
+            train_df = train_df[selected_features]
+            test_df = test_df[selected_features]
 
             # Handling outliers
-            for df in [train_df, test_df]:
-                for col in df.select_dtypes(include='number').columns:
-                    skewness = skew(df[col])
-                    limits = (0.05, 0.25) if skewness > 1 else (0.25, 0.05) if skewness < -1 else (0.15, 0.15)
-                    df[col] = winsorize(df[col], limits=limits)
-            
-            # Creating new features
-            for df in [train_df, test_df]:
-                df['Products_year'] = df['Total_Relationship_Count'] / df['Months_on_book'] * 12
-                #df['Transaction_Amt_Change_Rate'] = (df['Total_Trans_Amt'] - df['Total_Trans_Amt'].shift(1)) / df['Total_Trans_Amt'].shift(1)
-                #df['Transaction_Ct_Change_Rate'] = (df['Total_Trans_Ct'] - df['Total_Trans_Ct'].shift(1)) / df['Total_Trans_Ct'].shift(1)
+            train_df = self.handle_outliers(train_df)
+            test_df = self.handle_outliers(test_df)
 
-            #Defining features and target columns
+            # Creating new features
+            feature_formulas = {
+                'Products_year': 'df["Total_Relationship_Count"] / df["Months_on_book"] * 12'
+            }
+            train_df = self.create_new_features(train_df, feature_formulas)
+            test_df = self.create_new_features(test_df, feature_formulas)
+
+            # Defining target column
             target_column = 'Attrition_Flag'
-            train_features = train_df.drop(columns=[target_column], axis = 1)
-            test_features = test_df.drop(columns=[target_column], axis = 1)
-            
-            # Preprocessing object initialized
-            logging.info("Obtaining preprocessing object.")
-            preprocessing_obj=self.get_data_transformation_obj(train_features)
-            
-            logging.info(f"Applying preprocessing object on training dataframe and testing dataframe.")
+            train_features = train_df.drop(columns=[target_column], axis=1)
+            test_features = test_df.drop(columns=[target_column], axis=1)
+
+            # Getting the preprocessing object
+            preprocessing_obj = self.get_data_transformation_obj(train_features)
+
+            # Applying transformations
             train_features_transformed = preprocessing_obj.fit_transform(train_features)
             test_features_transformed = preprocessing_obj.transform(test_features)
 
-            logging.info(f"Saving preprocessing object.")
-
-            save_object(
-                file_path=self.data_transformation_config.preprocessor_obj_file_path,
-                obj=preprocessing_obj
-            )
-            
-            #Saving encoded features column names
+            # Saving the preprocessing object
             enc_feat_col = pd.get_dummies(train_features).columns
-            save_object(file_path=self.data_transformation_config.feature_names_file_path, obj=enc_feat_col)
-            # Apply preprocessing and encode target
+
             le = LabelEncoder()
             train_target_encoded = le.fit_transform(train_df[target_column])
             test_target_encoded = le.transform(test_df[target_column])
 
-            # Serialize label encoder
-            save_object(self.data_transformation_config.label_encoder_file_path, obj = le)
+            # Saving multiple objects
+            objects_to_save = [
+                self.data_transformation_config.preprocessor_obj_file_path,
+                self.data_transformation_config.label_encoder_file_path,
+                self.data_transformation_config.feature_names_file_path
+            ]
+            objects = [preprocessing_obj, le, enc_feat_col]
+            self.save_multiple_objects(objects_to_save, objects)
 
-            # Transformed and encoded DataFrames
-            train_df_trans = pd.DataFrame(train_features_transformed, columns=enc_feat_col)
-            train_df_trans[target_column] = train_target_encoded
-            train_df_trans.dropna(inplace=True)
-
-            test_df_trans = pd.DataFrame(test_features_transformed, columns=enc_feat_col)
-            test_df_trans[target_column] = test_target_encoded
-            test_df_trans.dropna(inplace=True)
-
-            # Calculate correlation matrix and select correlated features
-            corrmat = train_df_trans.corr()
-            target_corr_bool = corrmat.loc[target_column,:].between(0.1, 0.65) | corrmat.loc[target_column,:].between(-0.65, -0.1)
-            correlated_features = corrmat.columns[target_corr_bool].tolist()
-
-            # Serialize the correlated features
-            save_object(self.data_transformation_config.correlated_features_file_path, obj=correlated_features)
-
-            # Filter data based on selected features
-            train_arr = train_df_trans[correlated_features + [target_column]].values
-            test_arr = test_df_trans[correlated_features + [target_column]].values
+            # Combining transformed features and encoded target
+            final_columns = list(enc_feat_col) + [target_column]
+            train_arr = np.column_stack((train_features_transformed, train_target_encoded))
+            test_arr = np.column_stack((test_features_transformed, test_target_encoded))
 
             return train_arr, test_arr
+
         except Exception as e:
-            raise CustomException(e, sys)
+            error_message = f"Error occurred: {str(e)}"
+            logging.error(error_message)
+            raise CustomException(error_message, sys)

@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block title %}Prediction{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        <h2 class="card-title text-center">Credit Card Churn Indicator</h2>
+        <form action="{{ url_for('predict_datapoint') }}" method="POST">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="Months_on_book" class="form-label">Months Active (on Book)</label>
+                    <input class="form-control" type="number" id="Months_on_book" name="Months_on_book" placeholder="e.g. 24" min="1" max="60" required />
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="Total_Relationship_Count" class="form-label">Total Relationship Count</label>
+                    <input class="form-control" type="number" id="Total_Relationship_Count" name="Total_Relationship_Count" placeholder="e.g. 3" min="1" max="6" required />
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="Months_Inactive_12_mon" class="form-label">Months Inactive (last 12 months)</label>
+                    <input class="form-control" type="number" id="Months_Inactive_12_mon" name="Months_Inactive_12_mon" placeholder="e.g. 2" min="0" max="12" required />
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="Contacts_Count_12_mon" class="form-label">Contacts in Last 12 Months</label>
+                    <input class="form-control" type="number" id="Contacts_Count_12_mon" name="Contacts_Count_12_mon" placeholder="e.g. 4" min="0" max="12" required />
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="Total_Revolving_Bal" class="form-label">Total Revolving Balance</label>
+                    <input class="form-control" type="number" step="any" id="Total_Revolving_Bal" name="Total_Revolving_Bal" placeholder="e.g. 1200" min="0" max="25000" required />
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="Total_Amt_Chng_Q4_Q1" class="form-label">Total Amount Change (Q4→Q1)</label>
+                    <input class="form-control" type="number" step="any" id="Total_Amt_Chng_Q4_Q1" name="Total_Amt_Chng_Q4_Q1" placeholder="e.g. 1.5" min="0" max="5" required />
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="Total_Trans_Amt" class="form-label">Total Transaction Amount (12 months)</label>
+                    <input class="form-control" type="number" step="any" id="Total_Trans_Amt" name="Total_Trans_Amt" placeholder="e.g. 10000" min="0" max="999999" required />
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="Total_Trans_Ct" class="form-label">Total Transaction Count (12 months)</label>
+                    <input class="form-control" type="number" step="1" id="Total_Trans_Ct" name="Total_Trans_Ct" placeholder="e.g. 45" min="0" max="999" required />
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="Total_Ct_Chng_Q4_Q1" class="form-label">Total Count Change (Q4→Q1)</label>
+                    <input class="form-control" type="number" step="any" id="Total_Ct_Chng_Q4_Q1" name="Total_Ct_Chng_Q4_Q1" placeholder="e.g. 2.1" min="0" max="5" required />
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="Avg_Utilization_Ratio" class="form-label">Credit Card Utilization (0 to 1)</label>
+                    <input class="form-control" type="number" step="0.01" id="Avg_Utilization_Ratio" name="Avg_Utilization_Ratio" placeholder="e.g. 0.25" min="0" max="1" required />
+                </div>
+            </div>
+
+            <div class="text-center">
+                <button class="btn btn-primary" type="submit">Predict Attrition Flag</button>
+            </div>
+
+            {% if results %}
+            <div class="alert alert-info text-center mt-4">
+                <h4>The history of this client shows it to be an '{{preds}}' with {{conf}}% confidence.</h4>
+            </div>
+            {% endif %}
+        </form>
+    </div>
+</div>
+{% endblock %}

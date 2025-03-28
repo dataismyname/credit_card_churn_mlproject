@@ -5,7 +5,7 @@ matplotlib
 scipy
 scikit-learn
 #tensorflow
-#keras
+#skeras
 dill
 Flask
 # -e .

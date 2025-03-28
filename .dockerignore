@@ -1,7 +1,10 @@
 .git
-venv
-logs
 .gitignore
-notebook
 *.pyc
 __pycache__
+
+_diary/
+venv/
+logs
+uploads/
+notebook/

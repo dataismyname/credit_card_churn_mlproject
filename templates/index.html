@@ -1,2 +1,16 @@
-<h1>Welcome to the home page</h1>
+{% extends 'base.html' %}
+{% block title %}Home{% endblock %}
 
+{% block content %}
+<div class="text-center mt-5">
+    <h1 class="mb-4">Welcome to the Churn Prediction App</h1>
+    <p class="lead">Use this tool to predict customer churn based on various factors.</p>
+    <a href="{{ url_for('predict_datapoint') }}" class="btn btn-primary btn-lg">Go to Prediction Page</a>
+
+    <hr class="my-4">
+    <p class="text-muted">
+        This app was developed by <a href="https://dataexpn.com" target="_blank">dataexpn</a>,
+        a data solutions initiative to demonstrate data-driven decision tools.
+    </p>
+</div>
+{% endblock %}
